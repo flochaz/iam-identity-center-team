@@ -29,6 +29,85 @@ def parse_arn(arn):
         result['resourcetype'], result['resource'] = elements[5].split('/')
     return result
 
+def transform_event_to_chatbot_message(event):
+    """
+    Source event schema example:
+    '{
+        "email": "user@domain.com",
+        "username": "idc_user@domain.com",
+        "duration": "3600",
+        "accountId": "0123456789012",
+        "status": "approved",
+        "accountName": "team-account",
+        "id": "",
+        "role": "",
+        "roleId": "",
+        "time": "1",
+        "startTime": "2023-08-09T21:45:26.787Z",
+        "justification": "",
+        "approver": "approver@domain.com",
+        "revoker": null,
+        "instanceARN": "",
+        "approvers": [
+            "approver1@domain.com",
+            "approver2@domain.com"
+        ],
+        "expire": 432000,
+        "approvalRequired": true,
+        "userId": "",
+        "ses_notifications_enabled": true,
+        "sns_notifications_enabled": false,
+        "slack_notifications_enabled": false,
+        "ses_source_email": "source@domain.com",
+        "ses_source_arn": "",
+        "notification_topic_arn": "arn:aws:sns:us-east-1:0123456789012:TeamNotifications-main",
+        "sso_login_url": "https://domain.awsapps.com/start",
+        "requests_table": "",
+        "revoke_sm": "",
+        "grant_sm": "",
+        "fn_teamstatus_arn": "",
+        "fn_teamnotifyslack_arn": ""
+    }'
+
+    Target event schema for chatbot : https://docs.aws.amazon.com/chatbot/latest/adminguide/custom-notifs.html#event-schema
+    '{
+        "version": String, 
+        "source": String, 
+        "id": String,    
+        "content": {
+            "textType": String, 
+            "title": String,  
+            "description": String, 
+            "nextSteps": [ String, String, ... ], 
+            "keywords": [ String, String, ... ] 
+        },
+        "metadata": {                     
+            "threadId": String,
+            "summary": String,
+            "eventType": String,
+            "relatedResources": [ String, String, ... ],
+            "additionalContext" : {
+                "customerProvidedKey1": String,
+                "customerProvidedKey2": String
+                ...
+            }
+        }
+    }'
+    """
+    return {
+        "version": "1.0",
+        "source": "custom",
+        "id": event.get("id"),
+        "content": {
+            "textType": "client-markdown",
+            "title": "AWS Access Request Notification",
+            "description": f"**{event.get('email', 'unknown email')}** requests access to AWS account **{event.get('accountName', 'unknown account')}** as **{event.get('role', 'unknown role')}**.",
+            "nextSteps": [
+                f"**Review this request** in [TEAM](https://team-idc.bloomeo-app.com/approvals/approve).",
+                "Add a thumb up or down on this message to avoid others to review this request.",
+            ]
+        }
+    }
 
 def send_ses_notification(
     source_email, source_arn, subject, message_html, to_addresses, cc_addresses
@@ -65,6 +144,7 @@ def send_ses_notification(
 
 def send_sns_notification(notification_topic_arn, message, subject):
     sns_client = session.client("sns")
+    print(f"Sending SNS notification to {notification_topic_arn} with message: {message}")
     try:
         sns_client.publish(
             TopicArn=notification_topic_arn,
@@ -179,7 +259,7 @@ def lambda_handler(event: dict, context):
     ses_notifications_enabled = event.get("ses_notifications_enabled", "")
     ses_source_email = event.get("ses_source_email", "")
     ses_source_arn = event.get("ses_source_arn", "")
-    sns_notifications_enabled = event.get("sns_notifications_enabled", "")
+    sns_notifications_enabled = True
     notification_topic_arn = event.get("notification_topic_arn", "")
     slack_notifications_enabled = event.get("slack_notifications_enabled", "")
     if not (
@@ -230,7 +310,7 @@ def lambda_handler(event: dict, context):
     justification = event.get("justification", "No justification provided")
     ticket = event.get("ticketNo", "No ticket provided")
     login_url = event["sso_login_url"]
-    sns_message = json.dumps(event)
+    sns_message = json.dumps(transform_event_to_chatbot_message(event))
 
     match request_status:
         case "pending":
