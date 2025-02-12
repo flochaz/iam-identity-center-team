@@ -24,6 +24,7 @@ else
 fi
 
 cd ..
+cd ./deployment
 
 if [ -z "$SECRET_NAME" ]; then
   aws codecommit create-repository --region $REGION --repository-name team-idc-app --repository-description "Temporary Elevated Access Management (TEAM) Application"
