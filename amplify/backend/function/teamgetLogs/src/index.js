@@ -143,6 +143,7 @@ const start_query = async (event) => {
     const input = {
       QueryStatement: `SELECT eventID, eventName, eventSource, eventTime FROM ${EventDataStore} WHERE eventTime > '${startTime}' AND eventTime < '${endTime}' AND lower(useridentity.principalId) LIKE '%:${username}%' AND useridentity.sessionContext.sessionIssuer.arn LIKE '%${role}%' AND recipientAccountId='${accountId}'`,
     };
+    console.log(`Query: ${input}`);
     const command = new StartQueryCommand(input);
     const response = await client.send(command);
     return response.QueryId;
