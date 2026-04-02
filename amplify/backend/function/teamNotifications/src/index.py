@@ -287,6 +287,7 @@ def lambda_handler(event: dict, context):
     # These statuses are updated in the DDB table after the event is generated, so we update it here
     if ended:
         request_status = "ended"
+        return # No need to send notification when session is ended
     if (
         (request_status == "approved" or request_status == "pending")
         and granted
